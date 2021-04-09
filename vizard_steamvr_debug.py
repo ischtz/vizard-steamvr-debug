@@ -22,6 +22,10 @@ viz.go(viz.FULLSCREEN)
 # SCENE OBJECTS
 # -----------------------------------------------------------------------------
 
+# Formatting
+LABEL_SCALE = 0.05
+VALUE_SCALE = 0.015
+
 # Global coordinate visualization
 grid = vizshape.addGrid((100, 100), color=[0.4, 0.4, 0.4])
 main_axes = vizshape.addAxes(pos=(0,0,0), scale=(0.5, 0.5, 0.5))
@@ -34,7 +38,7 @@ main_light = vizfx.addDirectionalLight(euler=(0,90,0), color=viz.WHITE)
 origin_light = vizfx.addPointLight(color=viz.WHITE, pos=(0,0,0))
 
 # UI
-txt = 'Hotkeys:\nS - Save collected points data\nC - Clear point data\nQ - Quit\n\n'
+txt = 'Hotkeys:\nS - Save collected points data\nC - Clear point data\nV - Show/Hide Values\nQ - Quit\n\n'
 txt += 'Controller Buttons:\nTrigger - place point axes\nA - Save point data\nB - Take screenshot'
 ui = vizinfo.InfoPanel(txt, icon=True, align=viz.ALIGN_RIGHT_TOP, title='SteamVR Debug Tool')
 ui.renderToEye(viz.RIGHT_EYE)
@@ -42,6 +46,7 @@ ui.addSeparator()
 
 points = []
 screenshot = 1
+value_labels = []
 
 
 # TASKS
@@ -129,10 +134,19 @@ def saveScreenshot():
 	print('Screenshot saved.')
 
 
+def showValues(state):
+	""" Set visibility of all position/Euler labels """
+	global value_labels
+	print(state)
+	for label in value_labels:
+		label.visible(state)
+
+
 # Key callbacks
 vizact.onkeydown('s', savePoints)
 vizact.onkeydown('c', clearPoints)
 vizact.onkeydown('q', viz.quit)
+vizact.onkeydown('v', showValues, viz.TOGGLE)
 
 
 # HARDWARE SETUP
@@ -157,7 +171,7 @@ for lidx, lighthouse in enumerate(steamvr.getCameraList()):
 	lighthouse.model.disable(viz.INTERSECTION)
 	viz.link(lighthouse, lighthouse.model)
 	
-	l_text = viz.addText3D(str(lidx), scale=(0.05, 0.05, 0.05), color=viz.YELLOW,
+	l_text = viz.addText3D(str(lidx), scale=(LABEL_SCALE,) * 3, color=viz.YELLOW,
 						   parent=lighthouse.model, pos=(0.1, 0, 0))
 	l_text.setEuler(180, 0, 0)
 	
@@ -181,12 +195,20 @@ for cidx, controller in enumerate(steamvr.getControllerList()):
 	
 	c_axes = vizshape.addAxes(scale=(0.1, 0.1, 0.1))
 	viz.link(controller, c_axes)
-	c_text = viz.addText3D(str(cidx), scale=(0.05, 0.05, 0.05), 
+	c_text = viz.addText3D(str(cidx), scale=(LABEL_SCALE,) * 3, 
 						   parent=controller.model, pos=(-0.05, 0, 0))
+	val_x = viz.addText3D('X: 0.00 (123.0°)', scale=(VALUE_SCALE,) * 3, 
+						  parent=controller.model, pos=(-0.18, 0.04, 0), color=viz.RED)
+	val_y = viz.addText3D('Y: 0.00 (123.0°)', scale=(VALUE_SCALE,) * 3, 
+						  parent=controller.model, pos=(-0.18, 0.02, 0), color=viz.GREEN)
+	val_z = viz.addText3D('Z: 0.00 (123.0°)', scale=(VALUE_SCALE,) * 3, 
+						  parent=controller.model, pos=(-0.18, 0, 0), color=viz.BLUE)
+	value_labels.extend([val_x, val_y, val_z])
 	
 	controllers[cidx] = {'model': controller.model,
 						 'axes': c_axes,
 						 'text': c_text,
+						 'values': [val_x, val_y, val_z],
 						 'ui': viz.addText('N/A')}
 	
 	ui.addLabelItem(str(cidx), controllers[cidx]['ui'])
@@ -216,10 +238,21 @@ for tidx, tracker in enumerate(steamvr.getTrackerList()):
 
 	t_text = viz.addText3D(str(tidx), scale=(0.05, 0.05, 0.05), color=viz.BLUE,
 						   parent=tracker.model, pos=(-0.1, 0, 0))
+	val_x = viz.addText3D('X: 0.00 (123.0°)', scale=(VALUE_SCALE,) * 3, 
+						  parent=tracker.model, pos=(0.18, 0.04, 0), color=viz.RED)
+	val_x.setEuler([180, 0, 0], mode=viz.REL_LOCAL)
+	val_y = viz.addText3D('Y: 0.00 (123.0°)', scale=(VALUE_SCALE,) * 3, 
+						  parent=tracker.model, pos=(0.18, 0.02, 0), color=viz.GREEN)
+	val_y.setEuler([180, 0, 0], mode=viz.REL_LOCAL)
+	val_z = viz.addText3D('Z: 0.00 (123.0°)', scale=(VALUE_SCALE,) * 3, 
+						  parent=tracker.model, pos=(0.18, 0, 0), color=viz.BLUE)
+	val_z.setEuler([180, 0, 0], mode=viz.REL_LOCAL)
+	value_labels.extend([val_x, val_y, val_z])
 
 	trackers[tidx] = {'model': tracker.model,
 					  'axes': t_axes,
 					  'text': t_text,
+					  'values': [val_x, val_y, val_z],
 					  'ui': viz.addText('N/A')}
 	ui.addLabelItem(str(tidx), trackers[tidx]['ui'])
 	
@@ -229,16 +262,25 @@ for tidx, tracker in enumerate(steamvr.getTrackerList()):
 def updateUI():
 	""" Update displayed position and orientation data """
 	FMT = '({:.2f},{:.2f},{:.2f}) / ({:3.1f},{:3.1f},{:3.1f})'
+	VAL_FMT = '{:s}: {:0.2f} ({:3.1f}°)'
 	for c in controllers.keys():
-		pos = controllers[c]['model'].getPosition()
-		ori = controllers[c]['model'].getEuler()
+		pos = controllers[c]['model'].getPosition(viz.ABS_GLOBAL)
+		ori = controllers[c]['model'].getEuler(viz.ABS_GLOBAL)
 		controllers[c]['ui'].message(FMT.format(pos[0], pos[1], pos[2], 
-												ori[0], ori[1], ori[2]))
-	for t in trackers.keys():
-		pos = trackers[t]['model'].getPosition()
-		trackers[t]['ui'].message(FMT.format(pos[0], pos[1], pos[2], 
-											 ori[0], ori[1], ori[2]))
+												ori[1], ori[0], ori[2]))
+		controllers[c]['values'][0].message(VAL_FMT.format('X', pos[0], ori[1]))
+		controllers[c]['values'][1].message(VAL_FMT.format('Y', pos[1], ori[0]))
+		controllers[c]['values'][2].message(VAL_FMT.format('Z', pos[2], ori[2]))
 
+	for t in trackers.keys():
+		pos = trackers[t]['model'].getPosition(viz.ABS_GLOBAL)
+		ori = trackers[t]['model'].getEuler(viz.ABS_GLOBAL)
+		trackers[t]['ui'].message(FMT.format(pos[0], pos[1], pos[2], 
+											 ori[1], ori[0], ori[2]))
+
+		trackers[t]['values'][0].message(VAL_FMT.format('X', pos[0], ori[1]))
+		trackers[t]['values'][1].message(VAL_FMT.format('Y', pos[1], ori[0]))
+		trackers[t]['values'][2].message(VAL_FMT.format('Z', pos[2], ori[2]))
 
 # MAIN TASK 
 # -----------------------------------------------------------------------------
