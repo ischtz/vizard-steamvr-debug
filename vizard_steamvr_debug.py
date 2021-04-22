@@ -25,6 +25,7 @@ viz.go(viz.FULLSCREEN)
 # Formatting
 LABEL_SCALE = 0.05
 VALUE_SCALE = 0.015
+HUD_POS = [0.4, 0.3, 1] # Works for Vive / Vive Pro
 
 # Global coordinate visualization
 grid = vizshape.addGrid((100, 100), color=[0.4, 0.4, 0.4])
@@ -137,7 +138,6 @@ def saveScreenshot():
 def showValues(state):
 	""" Set visibility of all position/Euler labels """
 	global value_labels
-	print(state)
 	for label in value_labels:
 		label.visible(state)
 
@@ -160,6 +160,17 @@ hmd.setMonoMirror(True)
 navigationNode = viz.addGroup()
 viewLink = viz.link(navigationNode, viz.MainView)
 viewLink.preMultLinkable(hmd.getSensor())
+
+ui.addItem(viz.addText('Headset'))
+hmd_ui = viz.addText('N/A')
+ui.addLabelItem('0', hmd_ui)
+ui.addSeparator()
+
+hud = viz.addText3D('X: 0.00 (123.0°)', scale=(VALUE_SCALE * 2.5,) * 3, color=viz.GRAY)
+hud_link = viz.link(viz.MainView, hud)
+hud_link.preTrans(HUD_POS, viz.REL_LOCAL)
+value_labels.append(hud)
+
 
 # Lighthouses
 lighthouses = {}
@@ -259,10 +270,20 @@ for tidx, tracker in enumerate(steamvr.getTrackerList()):
 	print('Found Vive tracker: {:d}'.format(tidx))
 
 
+# Hide labels by default
+showValues(False)
+
 def updateUI():
 	""" Update displayed position and orientation data """
 	FMT = '({:.2f},{:.2f},{:.2f}) / ({:3.1f},{:3.1f},{:3.1f})'
 	VAL_FMT = '{:s}: {:0.2f} ({:3.1f}°)'
+	
+	hmdpos = hmd.getSensor().getPosition(viz.ABS_GLOBAL)
+	hmdori = hmd.getSensor().getEuler(viz.ABS_GLOBAL)
+	hmd_ui.message(FMT.format(hmdpos[0], hmdpos[1], hmdpos[2], 
+							  hmdori[1], hmdori[0], hmdori[2]))
+	hud.message('X: {:.2f}\nY: {:.2f}\nZ: {:.2f}'.format(hmdpos[0], hmdpos[1], hmdpos[2]))
+
 	for c in controllers.keys():
 		pos = controllers[c]['model'].getPosition(viz.ABS_GLOBAL)
 		ori = controllers[c]['model'].getEuler(viz.ABS_GLOBAL)
@@ -281,6 +302,7 @@ def updateUI():
 		trackers[t]['values'][0].message(VAL_FMT.format('X', pos[0], ori[1]))
 		trackers[t]['values'][1].message(VAL_FMT.format('Y', pos[1], ori[0]))
 		trackers[t]['values'][2].message(VAL_FMT.format('Z', pos[2], ori[2]))
+
 
 # MAIN TASK 
 # -----------------------------------------------------------------------------
