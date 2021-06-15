@@ -9,6 +9,7 @@ This is a simple Vizard script to help test and debug SteamVR-based scenarios (b
 - Enumerate and display all detected SteamVR components (base stations, controllers, trackers), together with their device index, local coordinate axes, and position / orientation data
 - Store controller position and orientation data for simple measurements, with CSV export
 - Save screenshots of the environment with a controller button press
+- Save the entire debug scene to OSG format (useful e.g. when measuring rooms)
 - Can be added to any Vizard script and toggled using a hotkey (default: F12)
 
 ![screenshot](https://user-images.githubusercontent.com/7711674/114215627-1ac89900-9966-11eb-9dee-2cb319d58fca.png)
