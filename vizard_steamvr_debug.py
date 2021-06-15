@@ -67,12 +67,13 @@ class SteamVRDebugOverlay(object):
         self.lighthouses = {}
         
         # Set up scene objects
+        self._root = viz.addGroup()
         self._obj = []
-        self._obj.append(vizshape.addGrid((100, 100), color=self.GRID_COLOR, pos=[0.0, 0.001, 0.0]))
-        self._obj.append(vizshape.addAxes(pos=(0,0,0), scale=(0.5, 0.5, 0.5)))
+        self._obj.append(vizshape.addGrid((100, 100), color=self.GRID_COLOR, pos=[0.0, 0.001, 0.0], parent=self._root))
+        self._obj.append(vizshape.addAxes(pos=(0,0,0), scale=(0.5, 0.5, 0.5), parent=self._root))
 
         # Set up UI
-        txt = 'Hotkeys:\nS - Save collected points data\nC - Clear point data\n\n'
+        txt = 'Hotkeys:\nS - Save collected points data\nC - Clear point data\nL - Toggle Lighthouse rays\nX - Export debug scene\n\n'
         txt += 'Controller Buttons:\nTrigger - place point axes\nA - Save point data\nB - Take screenshot'
         self._ui = vizinfo.InfoPanel(txt, icon=True, align=viz.ALIGN_RIGHT_TOP, title='SteamVR Debug Tool')
         self._ui.renderToEye(viz.RIGHT_EYE)
@@ -83,6 +84,8 @@ class SteamVRDebugOverlay(object):
         self._callbacks = []
         self._callbacks.append(vizact.onkeydown('s', self.savePoints))
         self._callbacks.append(vizact.onkeydown('c', self.clearPoints))
+        self._callbacks.append(vizact.onkeydown('l', self.showLighthouseRays, viz.TOGGLE))
+        self._callbacks.append(vizact.onkeydown('x', self.saveDebugScene))
 
         self.findDevices()
         self.enable(self._enable)
@@ -112,7 +115,7 @@ class SteamVRDebugOverlay(object):
 
         # Lighthouses
         for lidx, lighthouse in enumerate(steamvr.getCameraList()):
-            lighthouse.model = lighthouse.addModel()
+            lighthouse.model = lighthouse.addModel(parent=self._root)
             if not lighthouse.model:
                 lighthouse.model = viz.addGroup()
             lighthouse.model.setCompositeAlpha(self.DEBUG_ALPHA)
@@ -123,7 +126,19 @@ class SteamVRDebugOverlay(object):
                                 parent=lighthouse.model, pos=(0.1, 0, 0))
             l_text.setEuler(180, 0, 0)
             
+            # Lighthouse normal vector
+            viz.startLayer(viz.LINES)
+            viz.lineWidth(4)
+            viz.vertexColor(viz.YELLOW)
+            viz.vertex([0,0,0])
+            viz.vertex([0,0,100])
+            l_normal = viz.endLayer(parent=lighthouse.model)
+            l_normal.disable([viz.INTERSECTION, viz.SHADOW_CASTING])
+            l_normal.alpha(0.4)
+            l_normal.visible(False)
+
             self.lighthouses[lidx] = {'model': lighthouse.model,
+                                      'normal': l_normal,
                                       'text': l_text}
             self._obj.append(lighthouse.model)
             print('* Found Lighthouse: {:d}'.format(lidx))
@@ -134,9 +149,9 @@ class SteamVRDebugOverlay(object):
 
             for cidx, controller in enumerate(steamvr.getControllerList()):
                 
-                controller.model = controller.addModel()
+                controller.model = controller.addModel(parent=self._root)
                 if not controller.model:
-                    controller.model = viz.addGroup()
+                    controller.model = viz.addGroup(parent=self._root)
                 controller.model.setCompositeAlpha(self.DEBUG_ALPHA)
                 controller.model.disable(viz.INTERSECTION)
                 viz.link(controller, controller.model)
@@ -175,9 +190,9 @@ class SteamVRDebugOverlay(object):
 
             for tidx, tracker in enumerate(steamvr.getTrackerList()):
                 
-                tracker.model = tracker.addModel()
+                tracker.model = tracker.addModel(parent=self._root)
                 if not tracker.model:
-                    tracker.model = viz.addGroup()
+                    tracker.model = viz.addGroup(parent=self._root)
                 tracker.model.setCompositeAlpha(self.DEBUG_ALPHA)
                 tracker.model.disable(viz.INTERSECTION)
                 viz.link(tracker, tracker.model)
@@ -221,6 +236,12 @@ class SteamVRDebugOverlay(object):
                 point.visible(value)
 
 
+    def showLighthouseRays(self, state):
+        """ Set visibility of lighthouse normal vectors """
+        for lh in self.lighthouses.values():
+            lh['normal'].visible(state)
+    
+    
     def _storePoint(self, controller, index):
         """ Save and print controller position / orientation data 
         
@@ -233,7 +254,7 @@ class SteamVRDebugOverlay(object):
         e = controller.getEuler()
         print(s.format(index, p[0], p[1], p[2], e[0], e[1], e[2]))
         
-        px = vizshape.addAxes(scale=(0.05, 0.05, 0.05))
+        px = vizshape.addAxes(scale=(0.05, 0.05, 0.05), parent=self._root)
         px.setPosition(p)
         px.setEuler(e)
         px._dev_index = index
@@ -281,6 +302,13 @@ class SteamVRDebugOverlay(object):
         print('Screenshot saved.')
 
 
+    def saveDebugScene(self, filename='svr_debug.osgb'):
+        """ Save the debug overlay scene to a 3D model file """
+        print('Exporting scene. This could take a while and Vizard rendering may stop.')
+        self._root.save(filename)
+        print('Scene exported to {:s}.'.format(filename))
+
+    
     def _updateUI(self):
         """ Update displayed position and orientation data """
         FMT = '({:.2f},{:.2f},{:.2f}) / ({:3.1f},{:3.1f},{:3.1f})'
