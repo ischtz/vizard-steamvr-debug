@@ -43,6 +43,33 @@ def showVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=2.
     text.remove()
 
 
+def addRayPrimitive(origin, direction, length=100, color=viz.RED, 
+                    alpha=0.6, linewidth=3, parent=None):
+    """ Create a Vizard ray primitive from two vertices. Can be used
+    to e.g. indicate a raycast or gaze vector in a VR environment.
+    
+    Args:
+        origin (3-tuple): Ray origin
+        direction (3-tuple): Unit direction vector
+        length (float): Ray length (set to 1 and use direction=<end>
+            to draw point-to-point ray)
+        color (3-tuple): Ray color
+        alpha (float): Ray alpha value
+        linewidth (int): OpenGL line drawing width in pixels
+        parent: Vizard node to use as parent
+    """
+    viz.startLayer(viz.LINES)
+    viz.lineWidth(linewidth)
+    viz.vertexColor(color)
+    viz.vertex(origin)
+    viz.vertex([x * length for x in direction])
+    ray = viz.endLayer()
+    ray.disable([viz.INTERSECTION, viz.SHADOW_CASTING])
+    ray.alpha(alpha)
+    if parent is not None:
+        ray.setParent(parent)
+    return ray
+
 
 class SteamVRDebugOverlay(object):
 
@@ -71,7 +98,12 @@ class SteamVRDebugOverlay(object):
         self._obj = []
         self._obj.append(vizshape.addGrid((100, 100), color=self.GRID_COLOR, pos=[0.0, 0.001, 0.0], parent=self._root))
         self._obj.append(vizshape.addAxes(pos=(0,0,0), scale=(0.5, 0.5, 0.5), parent=self._root))
-
+        
+        # Note: X/Z axis rays moved up (y) by 1 mm to avoid z-fighting with the ground plane
+        self._obj.append(addRayPrimitive(origin=[0,0.001,0], direction=[1, 0.001, 0], color=viz.RED, parent=self._root))   # x
+        self._obj.append(addRayPrimitive(origin=[0,0.001,0], direction=[0, 0.001, 1], color=viz.BLUE, parent=self._root))  # z
+        self._obj.append(addRayPrimitive(origin=[0,0,0], direction=[0, 1, 0], color=viz.GREEN, parent=self._root)) # y
+        
         # Set up UI
         txt = 'Hotkeys:\nS - Save collected points data\nC - Clear point data\nL - Toggle Lighthouse rays\nX - Export debug scene\n\n'
         txt += 'Controller Buttons:\nTrigger - place point axes\nA - Save point data\nB - Take screenshot'
@@ -127,14 +159,7 @@ class SteamVRDebugOverlay(object):
             l_text.setEuler(180, 0, 0)
             
             # Lighthouse normal vector
-            viz.startLayer(viz.LINES)
-            viz.lineWidth(4)
-            viz.vertexColor(viz.YELLOW)
-            viz.vertex([0,0,0])
-            viz.vertex([0,0,100])
-            l_normal = viz.endLayer(parent=lighthouse.model)
-            l_normal.disable([viz.INTERSECTION, viz.SHADOW_CASTING])
-            l_normal.alpha(0.4)
+            l_normal = addRayPrimitive(origin=[0,0,0], direction=[0,0,1], color=viz.YELLOW, parent=lighthouse.model)
             l_normal.visible(False)
 
             self.lighthouses[lidx] = {'model': lighthouse.model,
