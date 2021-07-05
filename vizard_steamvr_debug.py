@@ -2,8 +2,11 @@
 # Immo Schuetz, 2021
 # immo.schuetz@psychol.uni-giessen.de
 
+import os
 import sys 
-import csv 
+import csv
+import random
+import colorsys
 
 import viz
 import vizfx
@@ -92,7 +95,8 @@ class SteamVRDebugOverlay(object):
         self.controllers = {}
         self.trackers = {}
         self.lighthouses = {}
-        
+        self.nodes = {}
+
         # Set up scene objects
         self._root = viz.addGroup()
         self._obj = []
@@ -249,6 +253,75 @@ class SteamVRDebugOverlay(object):
             print('* No trackers detected.')
 
 
+    def addDebugModel(self, node, label, model=None, color=None, size=None):
+        """ Add a debug model, axes and label for any node3d object. 
+        Debug nodes are shown in UI and displayed/hidden together with 
+        the rest of the debug scene. 
+
+        Args:
+            node: any Vizard node, group, or sensor object
+            label (str): Brief text to identify the node in UI and VR
+            model (str): One of:
+                - 'sphere', 'cube', 'axes': use a vizshape primitive
+                - a valid model file name ('test.osg'): load and use model
+            color (3-tuple): RGB color, None for random (ignored for model files)
+            size (float): Size of primitive, or scaling factor for model files
+        """
+        if label in self.nodes.keys():
+            raise ValueError('Label already exists - node labels must be unique!')
+            return None
+
+        if color is None:
+            color = colorsys.hsv_to_rgb(random.uniform(0.0, 1.0), 
+                                        random.uniform(0.4, 1.0), 
+                                        random.uniform(0.5, 1.0))
+        if model is None:
+            model = 'axes'
+
+        # Add model and label text objects
+        if os.path.isfile(model):
+            if size is None:
+                size = 1.0
+            _m = viz.addChild(model, parent=self._root)
+            _m.setScale([size,] * 3)
+
+        else:
+            if size is None:
+                size = 0.05
+
+            if model == 'sphere':
+                _m = vizshape.addSphere(radius=size, color=color, parent=self._root)
+        
+            elif model == 'cube':
+                _m = vizshape.addCube(size=size, color=color, parent=self._root)
+
+            elif model == 'axes':
+                _m = vizshape.addAxes(length=size, color=color, parent=self._root)
+
+        _m.disable(viz.INTERSECTION)
+        _text = viz.addText3D(str(label), scale=(self.LABEL_SCALE,) * 3, 
+                              color=color, parent=_m, pos=(size * 1.5, 0, 0))
+        _text.alignment(alignment=viz.ALIGN_LEFT_CENTER)
+        viz.link(node, _m)
+
+        # Add UI section for debug nodes if this is the first one
+        if len(self.nodes) == 0:
+            self._ui.addSeparator()
+            self._ui.addItem(viz.addText('Other Nodes'))
+
+        _ui = viz.addText('N/A')
+        lbl = self._ui.addLabelItem(str(label), _ui)
+        lbl.label.color(color)
+        self._obj.extend([_m, _text])
+
+        self.nodes[str(label)] = {'model': _m,
+                                  'text': _text,
+                                  'ui': _ui}
+
+        print('* Added extra node entry: {:s}'.format(str(label)))
+        return _m
+
+
     def enable(self, value):
         """ Set visibility of all debug objects and enable 
         or disable key callbacks (except the main debug toggle) """
@@ -363,6 +436,13 @@ class SteamVRDebugOverlay(object):
             self.trackers[t]['values'][0].message(VAL_FMT.format('X', pos[0], ori[1]))
             self.trackers[t]['values'][1].message(VAL_FMT.format('Y', pos[1], ori[0]))
             self.trackers[t]['values'][2].message(VAL_FMT.format('Z', pos[2], ori[2]))
+
+        for n in self.nodes.keys():
+            pos = self.nodes[n]['model'].getPosition(viz.ABS_GLOBAL)
+            ori = self.nodes[n]['model'].getEuler(viz.ABS_GLOBAL)
+            self.nodes[n]['ui'].message(FMT.format(pos[0], pos[1], pos[2], 
+                                                   ori[1], ori[0], ori[2]))
+
 
 
 if __name__ == '__main__':
