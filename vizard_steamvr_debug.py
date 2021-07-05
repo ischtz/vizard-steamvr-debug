@@ -275,34 +275,33 @@ class SteamVRDebugOverlay(object):
             color = colorsys.hsv_to_rgb(random.uniform(0.0, 1.0), 
                                         random.uniform(0.4, 1.0), 
                                         random.uniform(0.5, 1.0))
-        if model is None:
-            model = 'axes'
-
         # Add model and label text objects
-        if os.path.isfile(model):
+        if model is not None and os.path.isfile(model):
             if size is None:
                 size = 1.0
-            _m = viz.addChild(model, parent=self._root)
+            _m = viz.addChild(model, parent=node)
             _m.setScale([size,] * 3)
 
         else:
             if size is None:
                 size = 0.05
 
-            if model == 'sphere':
-                _m = vizshape.addSphere(radius=size, color=color, parent=self._root)
+            if model is None:
+                _m = viz.addGroup(parent=node)
+                
+            elif model == 'sphere':
+                _m = vizshape.addSphere(radius=size, color=color, parent=node)
         
             elif model == 'cube':
-                _m = vizshape.addCube(size=size, color=color, parent=self._root)
+                _m = vizshape.addCube(size=size, color=color, parent=node)
 
             elif model == 'axes':
-                _m = vizshape.addAxes(length=size, color=color, parent=self._root)
+                _m = vizshape.addAxes(length=size, color=color, parent=node)
 
         _m.disable(viz.INTERSECTION)
-        _text = viz.addText3D(str(label), scale=(self.LABEL_SCALE,) * 3, 
+        _text = viz.addText3D(str(label), scale=(self.VALUE_SCALE,) * 3, 
                               color=color, parent=_m, pos=(size * 1.5, 0, 0))
         _text.alignment(alignment=viz.ALIGN_LEFT_CENTER)
-        viz.link(node, _m)
 
         # Add UI section for debug nodes if this is the first one
         if len(self.nodes) == 0:
