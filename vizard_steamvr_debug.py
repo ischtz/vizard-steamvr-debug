@@ -299,9 +299,10 @@ class SteamVRDebugOverlay(object):
                 _m = vizshape.addAxes(length=size, color=color, parent=node)
 
         _m.disable(viz.INTERSECTION)
-        _text = viz.addText3D(str(label), scale=(self.VALUE_SCALE,) * 3, 
-                              color=color, parent=_m, pos=(size * 1.5, 0, 0))
+        _text = viz.addText3D(str(label), scale=(self.VALUE_SCALE,) * 3,
+                              color=color, parent=_m, pos=(size * 1.1, 0.01, 0))
         _text.alignment(alignment=viz.ALIGN_LEFT_CENTER)
+        _text.setEuler(0, 45, 0)
 
         # Add UI section for debug nodes if this is the first one
         if len(self.nodes) == 0:
@@ -312,6 +313,8 @@ class SteamVRDebugOverlay(object):
         lbl = self._ui.addLabelItem(str(label), _ui)
         lbl.label.color(color)
         self._obj.extend([_m, _text])
+        _m.visible(self._enable)
+        _text.visible(self._enable)
 
         self.nodes[str(label)] = {'model': _m,
                                   'text': _text,
@@ -324,6 +327,7 @@ class SteamVRDebugOverlay(object):
     def enable(self, value):
         """ Set visibility of all debug objects and enable 
         or disable key callbacks (except the main debug toggle) """
+        self._enable = value
         for obj in self._obj:
             obj.visible(value)
         for c in self._callbacks:
