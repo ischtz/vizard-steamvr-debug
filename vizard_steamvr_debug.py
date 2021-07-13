@@ -17,6 +17,9 @@ import vizshape
 
 import steamvr
 
+DEBUGGER_SHOW_EVENT = viz.getEventID('SteamVRDebugOverlayShowEvent')
+DEBUGGER_HIDE_EVENT = viz.getEventID('SteamVRDebugOverlayHideEvent')
+
 
 def showVRText(msg, color=[1.0, 1.0, 1.0], distance=2.0, scale=0.05, duration=2.0):
     """ Display head-locked message in VR, e.g. for instructions.
@@ -327,14 +330,21 @@ class SteamVRDebugOverlay(object):
     def enable(self, value):
         """ Set visibility of all debug objects and enable 
         or disable key callbacks (except the main debug toggle) """
-        self._enable = value
+        if value == -1:
+            self._enable = not self._enable
+        else:
+            self._enable = value
         for obj in self._obj:
-            obj.visible(value)
+            obj.visible(self._enable)
         for c in self._callbacks:
-            c.setEnabled(value)
+            c.setEnabled(self._enable)
         if len(self._points) > 0:
             for point in self._points:
-                point.visible(value)
+                point.visible(self._enable)
+        if self._enable:
+            viz.sendEvent(DEBUGGER_SHOW_EVENT)
+        elif not self._enable:
+            viz.sendEvent(DEBUGGER_HIDE_EVENT)
 
 
     def showLighthouseRays(self, state):
@@ -450,7 +460,7 @@ class SteamVRDebugOverlay(object):
 
 if __name__ == '__main__':
     """ If module is called directly, just display the debug view """
-    viz.setMultiSample(8)    
+    viz.setMultiSample(4)    
     viz.go()
     hmd = steamvr.HMD()
     navigationNode = viz.addGroup()
